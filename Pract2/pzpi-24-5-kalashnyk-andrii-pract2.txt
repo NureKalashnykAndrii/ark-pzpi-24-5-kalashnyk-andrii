@@ -1,0 +1,606 @@
+Харківський національний університет радіоелектроніки
+Факультет комп’ютерних наук
+
+ Кафедра програмної інженерії
+
+З В І Т
+
+до практичного завдання № 2
+з дисципліни “Аналіз та рефакторинг коду”
+на тему: “Методи рефакторингу коду
+програмного забезпечення”
+
+Виконав:                                                               	    Перевірив:
+
+здобувач осв. гр. ПЗПІ-24-5           	  		    ст. викладач кафедри ПІ
+
+Калашник Андрій Миколайович                      Сокорчук Ігор Петрович
+
+Харків 2026
+
+1 ІСТОРІЯ ЗМІН
+
+Історію змін звіту наведено в таблиці 1.1.
+
+Таблиця 1.1 – Історія змін звіту
+№ | Дата | Версія звіту | Опис змін та виправлень
+1 | 16.11.2026 | 0.1 | Створено розділ “Завдання”
+2 | 16.11.2026 | 0.1 | Створено розділ “Опис виконаної роботи”
+3 | 16.11.2026 | 0.2 | Додано висновки, список джерел і додатки А, Б, В
+4 | 16.11.2026 | 0.3 | Код прикладів розділено на пари об’єктів “до/після” для кожного методу, оновлено слайди і хронологію відеозапису
+
+2 ЗАВДАННЯ
+
+Обрати три методи рефакторингу коду з книги Мартіна Фаулера “Refactoring. Improving the Design of Existing Code”. Навести приклади власного коду, який потребує покращення, і показати застосування обраних методів. Для кожного методу описати проблему, навести код до і після рефакторингу та пояснити переваги отриманого коду.
+
+До доповіді входять:
+
+– презентація з 12 слайдів українською мовою;
+
+– відеозапис доповіді тривалістю 7–9 хвилин;
+
+– звіт;
+
+– програмний код прикладів у репозиторії GitHub.
+
+Обрані методи: Encapsulate Field, Replace Type Code with Class, Replace Data Value with Object.
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+
+Рефакторинг – це зміна внутрішньої структури програми, яка робить код зрозумілішим і дешевшим для змін, але не змінює її поведінку [1]. Рефакторинг виконують малими кроками і після кожного кроку перевіряють, що програма працює так само.
+
+Для прикладів написано невеликий прототип на Kotlin на тему моніторингу акваріумів. Прототип обробляє покази датчиків температури, кислотності (pH) і рівня води. Увесь код зібрано в одному файлі code-examples-refactoring-methods.kt. Для кожного методу в ньому є пара об’єктів: об’єкт з кодом до рефакторингу (наприклад, EncapsulateFieldBefore) і об’єкт з кодом після нього (EncapsulateFieldAfter). Функція main запускає обидві версії кожного методу і порівнює їхній вивід. Повний код наведено в додатку В.
+
+Обрано три методи з каталогу рефакторингів [3], які стосуються організації даних. Усі вони усувають запах коду, який називають одержимістю примітивами: важливі для програми поняття зберігаються як звичайні числа або відкриті поля [4]. Р. Мартін у розділі “Об’єкти і структури даних” [2] пояснює, чому клас має приховувати свої дані і давати методи для роботи з ними.
+
+3.1 Метод Encapsulate Field
+
+Опис проблеми. У класі Aquarium поля temperature, ph і readingsCount оголошено як публічні var (додаток В.1, рядки 12–16). Їх може змінити будь-яка частина програми. Функції applyTemperature і applyPh записують нове значення і самі збільшують лічильник показів, тобто правило “оновив значення – збільш лічильник” повторено двічі (рядки 19–22, рядки 24–27). Якщо інший код запише temperature напряму, лічильник не зміниться, а записати можна навіть -500 °C. Клас не контролює свій стан, тому кожну нову вимогу до зміни стану доведеться шукати по всьому коду.
+
+Код до рефакторингу:
+12      class Aquarium(val name: String, val volumeLiters: Int) {
+13          var temperature: Double = 0.0
+14          var ph: Double = 7.0
+15          var readingsCount: Int = 0
+16      }
+
+19      fun applyTemperature(aquarium: Aquarium, value: Double) {
+20          aquarium.temperature = value
+21          aquarium.readingsCount = aquarium.readingsCount + 1
+22      }
+
+24      fun applyPh(aquarium: Aquarium, value: Double) {
+25          aquarium.ph = value
+26          aquarium.readingsCount = aquarium.readingsCount + 1
+27      }
+
+Пояснення методу. Суть методу Encapsulate Field – зробити публічне поле приватним і дати доступ до нього через методи [3]. У Kotlin поле класу вже є властивістю з геттером і сеттером, тому достатньо обмежити сеттер модифікатором private set. Читати значення ззовні можна, а змінювати – лише всередині класу. Функції applyTemperature і applyPh перенесено в клас як методи updateTemperature і updatePh, які оновлюють значення і лічильник разом.
+
+Код після рефакторингу:
+43      class Aquarium(val name: String, val volumeLiters: Int) {
+44          var temperature: Double = 0.0
+45              private set
+46          var ph: Double = 7.0
+47              private set
+48          var readingsCount: Int = 0
+49              private set
+50
+
+51          // лічильник тепер збільшується тільки тут
+52          fun updateTemperature(celsius: Double) {
+53              temperature = celsius
+54              readingsCount++
+55          }
+56
+
+57          fun updatePh(newPh: Double) {
+58              ph = newPh
+59              readingsCount++
+60          }
+61      }
+
+Переваги. Стан акваріума змінюється лише через методи класу. Правило “оновив значення – збільшив лічильник” записано всередині класу (додаток В.1, рядки 52–55, рядки 57–60). Рядок tank.readingsCount = 100 поза класом більше не компілюється: компілятор повідомляє, що сеттер приватний. Якщо знадобиться перевірка значення або запис часу оновлення, її треба додати лише в ці два методи. Слайди з цим прикладом показано на рисунках Б.4 і Б.5.
+
+3.2 Метод Replace Type Code with Class
+
+Опис проблеми. Тип датчика задано числовими константами 1, 2 і 3 (додаток В.2, рядки 80–82), а поле sensorType має тип Int (рядок 84). Компілятор пропустить виклик SensorReading(7, 1.0), хоча датчика з кодом 7 немає. Назву і одиницю виміру визначають дві окремі функції sensorTitle і sensorUnit з гілкою else (рядки 87–92, рядки 94–99). Щоб додати новий датчик, треба змінити константи і обидві функції. Якщо пропустити одну з них, помилку буде видно лише під час роботи програми як “Невідомий датчик” або порожню одиницю.
+
+Код до рефакторингу:
+80      const val SENSOR_TEMPERATURE = 1
+81      const val SENSOR_PH = 2
+82      const val SENSOR_WATER_LEVEL = 3
+
+84      class SensorReading(val sensorType: Int, val value: Double)
+
+87      fun sensorTitle(type: Int): String = when (type) {
+88          SENSOR_TEMPERATURE -> "Температура"
+89          SENSOR_PH -> "Кислотність"
+90          SENSOR_WATER_LEVEL -> "Рівень води"
+91          else -> "Невідомий датчик"
+92      }
+
+94      fun sensorUnit(type: Int): String = when (type) {
+95          SENSOR_TEMPERATURE -> "°C"
+96          SENSOR_PH -> "pH"
+97          SENSOR_WATER_LEVEL -> "см"
+98          else -> ""
+99      }
+
+Пояснення методу. Суть методу Replace Type Code with Class – замінити числовий код, який не впливає на поведінку, окремим класом [3]. У Kotlin для набору фіксованих значень використовують enum class. Створено SensorType з трьома значеннями, кожне з яких зберігає свою назву та одиницю виміру. Поле sensorType отримало тип SensorType, а функції sensorTitle і sensorUnit видалено: назву й одиницю тепер беруть безпосередньо з типу.
+
+Код після рефакторингу:
+118      enum class SensorType(val title: String, val unit: String) {
+119          TEMPERATURE("Температура", "°C"),
+120          PH("Кислотність", "pH"),
+121          WATER_LEVEL("Рівень води", "см"),
+122      }
+
+124      class SensorReading(val sensorType: SensorType, val value: Double)
+
+132          for (reading in readings) {
+133              val type = reading.sensorType
+134              println("${type.title}: ${reading.value} ${type.unit}")
+135          }
+
+Переваги. Неіснуючий тип датчика передати неможливо: SensorReading(7, 1.0) не скомпілюється, бо очікується значення SensorType. Назва та одиниця зберігаються разом з типом, тому 12 рядків двох функцій замінили 5 рядків enum (додаток В.2, рядки 118–122). Новий датчик додається одним рядком у SensorType, і його назву та одиницю неможливо забути. Слайди показано на рисунках Б.6 і Б.7.
+
+3.3 Метод Replace Data Value with Object
+
+Опис проблеми. Кислотність води передається як звичайне число Double. Проте pH має свої правила: допустимий діапазон від 0 до 14 і статус “норма”, “кисла” або “лужна”. Перевірку діапазону повторено двічі: у функції phStatus (додаток В.3, рядок 146) і у функції showPh (рядок 153). Статус рахує окрема функція, яка лежить далеко від самого значення. Функція showPh приймає будь-яке число Double, наприклад температуру.
+
+Код до рефакторингу:
+145      fun phStatus(ph: Double): String = when {
+146          ph < 0.0 || ph > 14.0 -> "помилка"
+147          ph < 6.5 -> "кисла"
+148          ph > 8.5 -> "лужна"
+149          else -> "норма"
+150      }
+
+152      fun showPh(value: Double) {
+153          if (value < 0.0 || value > 14.0) {
+154              println("Некоректне значення pH: $value")
+155          } else {
+156              println("pH: $value (${phStatus(value)})")
+157          }
+158      }
+
+Пояснення методу. Суть методу Replace Data Value with Object – перетворити просте значення, яке має власні дані або поведінку, на об’єкт [3]. Створено клас Ph. Це value class [5]: у коді він поводиться як окремий тип, а під час виконання компілятор, де це можливо, зберігає його як звичайне число Double. Перевірку діапазону перенесено в блок init з функцією require, статус став властивістю status, а функція ofOrNull повертає null для значення поза діапазоном. Межі діапазону задано один раз константами MIN і MAX.
+
+Код після рефакторингу:
+169      @JvmInline
+170      value class Ph(val value: Double) {
+171          init {
+172              require(value in MIN..MAX) { "Некоректне значення pH: $value" }
+173          }
+174
+
+175          val status: String
+176              get() = when {
+177                  value < 6.5 -> "кисла"
+178                  value > 8.5 -> "лужна"
+179                  else -> "норма"
+180              }
+181
+
+182          override fun toString(): String = value.toString()
+183
+
+184          companion object {
+185              const val MIN = 0.0
+186              const val MAX = 14.0
+187
+
+188              fun ofOrNull(value: Double): Ph? =
+189                  if (value in MIN..MAX) Ph(value) else null
+190          }
+191      }
+
+193      fun showPh(value: Double) {
+194          val ph = Ph.ofOrNull(value)
+195          if (ph == null) {
+196              println("Некоректне значення pH: $value")
+197          } else {
+198              println("pH: $ph (${ph.status})")
+199          }
+200      }
+
+Переваги. Межі pH записано в одному місці, усередині класу Ph (додаток В.3, рядки 185–186). Некоректний об’єкт створити неможливо: Ph(15.2) кидає IllegalArgumentException (рядок 172). Функцію phStatus видалено, а статус став частиною самого значення. Функція showPh більше не перевіряє діапазон сама: вона отримує результат ofOrNull і або виводить pH зі статусом, або повідомлення про помилку. Слайди показано на рисунках Б.8 і Б.9.
+
+3.4 Перевірка поведінки та інструменти
+
+Програму скомпільовано компілятором Kotlin і запущено. Функція main (додаток В.4, рядки 235–239) для кожного методу викликає функцію check. Вона запускає обидві версії, перехоплює їхній вивід функцією captureOutput і порівнює його. Результат запуску:
+
+=== 1 - Encapsulate Field: до ===
+Рифовий акваріум, 120 л
+Температура: 25.4 °C
+pH: 8.1
+Оброблено показів: 2
+=== 1 - Encapsulate Field: після ===
+Рифовий акваріум, 120 л
+Температура: 25.4 °C
+pH: 8.1
+Оброблено показів: 2
+Вивід однаковий: true
+
+=== 2 - Replace Type Code with Class: до ===
+Температура: 25.4 °C
+Кислотність: 8.1 pH
+Рівень води: 42.0 см
+=== 2 - Replace Type Code with Class: після ===
+Температура: 25.4 °C
+Кислотність: 8.1 pH
+Рівень води: 42.0 см
+Вивід однаковий: true
+
+=== 3 - Replace Data Value with Object: до ===
+pH: 8.1 (норма)
+Некоректне значення pH: 15.2
+=== 3 - Replace Data Value with Object: після ===
+pH: 8.1 (норма)
+Некоректне значення pH: 15.2
+Вивід однаковий: true
+
+Для всіх трьох методів програма вивела “Вивід однаковий: true”, тобто поведінка не змінилась. У третьому методі значення 15.2 обидві версії відхиляють з однаковим повідомленням “Некоректне значення pH: 15.2”. Нові обмеження, наприклад заборона запису в поле ззовні, перевіряються під час компіляції і не впливають на роботу програми.
+
+Як змінилось розташування правил у коді, показано в таблиці 3.1.
+
+Таблиця 3.1 – Розташування правил до і після рефакторингу
+Правило | До рефакторингу | Після рефакторингу
+Оновлення стану і лічильника | applyTemperature, applyPh поза класом | Aquarium.updateTemperature, Aquarium.updatePh
+Назва та одиниця датчика | sensorTitle, sensorUnit | SensorType
+Допустимий діапазон pH | phStatus, showPh | Ph: константи MIN і MAX
+Статус pH | phStatus | Ph.status
+
+Логіка з окремих функцій перейшла в класи, яким належать дані, тому код прототипу став більш об’єктним.
+
+Частину кроків можна виконати автоматично в IntelliJ IDEA [6]: Rename (Shift+F6), Change Signature (Ctrl+F6) і меню Refactor This (Ctrl+Alt+Shift+T). Для Encapsulate Field зручно спершу додати private set, і компілятор сам покаже всі місця, де поле записувалось ззовні. Для Replace Type Code with Class пошук Find Usages (Alt+F7) знаходить усі використання числових констант. Наступним кроком варто покрити класи Aquarium, SensorType і Ph юніт-тестами, щоб перевіряти рефакторинг автоматично.
+
+4 ВИСНОВКИ
+
+У ході роботи було розглянуто три методи рефакторингу: Encapsulate Field, Replace Type Code with Class і Replace Data Value with Object. Їх застосовано до прототипу на Kotlin на тему моніторингу акваріумів, який обробляє покази датчиків температури, pH і рівня води. Після рефакторингу правила зберігаються там, де лежать дані: клас Aquarium сам змінює свій стан, SensorType знає свою назву й одиницю виміру, а Ph перевіряє діапазон і визначає статус. Частину помилок тепер знаходить компілятор, зокрема неіснуючий тип датчика і запис у поле ззовні. Крім того, дві функції загальним обсягом 12 рядків замінив enum на 5 рядків.
+
+Для всіх трьох методів версії до і після рефакторингу виводять однаковий результат, отже поведінка програми не змінилась. Під час роботи я отримав навички пошуку проблем у коді та застосування методів рефакторингу в IntelliJ IDEA, а отримані класи можна взяти за основу для подальших лабораторних робіт.
+
+5 ВИКОРИСТАНІ ДЖЕРЕЛА
+
+1. Fowler M. Refactoring: Improving the Design of Existing Code. Reading : Addison-Wesley Professional, 1999. 464 p.
+
+2. Мартін Р. Чистий код: створення і рефакторинг за допомогою Agile. Харків : Фабула, 2019. 416 с.
+
+3. Refactoring catalog. Martin Fowler : вебсайт. URL: https://refactoring.com/catalog/ (дата звернення: 16.11.2026).
+
+4. Primitive Obsession. Refactoring.Guru : вебсайт. URL: https://refactoring.guru/smells/primitive-obsession (дата звернення: 16.11.2026).
+
+5. Inline value classes. Kotlin Documentation : вебсайт. URL: https://kotlinlang.org/docs/inline-classes.html (дата звернення: 16.11.2026).
+
+6. Refactoring code. IntelliJ IDEA Documentation : вебсайт. URL: https://www.jetbrains.com/help/idea/refactoring-source-code.html (дата звернення: 16.11.2026).
+
+ДОДАТОК А
+Відеозапис
+
+Відеозапис доповіді на YouTube: https://youtu.be/_t7OfK-WTGw
+
+Хронологічний опис відеозапису:
+
+00:00 – Вступ: тема доповіді, поняття рефакторингу, обрані методи
+
+01:50 – Метод 1: Encapsulate Field
+
+03:11 – Метод 2: Replace Type Code with Class
+
+04:27 – Метод 3: Replace Data Value with Object
+
+05:38 – Демонстрація: запуск програми, інструменти рефакторингу
+
+07:41 – Висновки
+
+08:35 – Використані джерела
+
+ДОДАТОК Б
+Слайди презентації
+
+Рисунок Б.1 – Титульний слайд доповіді
+
+Рисунок Б.2 – Зміст доповіді
+
+Рисунок Б.3 – Поняття рефакторингу та обрані методи
+
+Рисунок Б.4 – Метод 1: код до застосування Encapsulate Field
+
+Рисунок Б.5 – Метод 1: код після застосування Encapsulate Field
+
+Рисунок Б.6 – Метод 2: код до застосування Replace Type Code with Class
+
+Рисунок Б.7 – Метод 2: код після застосування Replace Type Code with Class
+
+Рисунок Б.8 – Метод 3: код до застосування Replace Data Value with Object
+
+Рисунок Б.9 – Метод 3: код після застосування Replace Data Value with Object
+
+Рисунок Б.10 – Перевірка поведінки та інструменти рефакторингу
+
+Рисунок Б.11 – Висновки доповіді
+
+Рисунок Б.12 – Список використаних джерел
+
+ДОДАТОК В
+Програмний код
+
+GitHub репозиторій: https://github.com/NureKalashnykAndrii/pzpi-24-5-kalashnyk-andrii/blob/main/Pract2/ark-pzpi-24-5-kalashnyk-andrii-pract2/code-examples-refactoring-methods.kt
+
+В.1 Метод Encapsulate Field
+
+ 1  package aquarium
+ 2
+
+ 3  import java.io.ByteArrayOutputStream
+ 4  import java.io.PrintStream
+ 5
+
+ 6
+
+ 7  // 1 - Encapsulate Field
+ 8
+
+ 9  // До
+10  object EncapsulateFieldBefore {
+11      // поля public, тому їх можна змінити з будь-якого місця
+12      class Aquarium(val name: String, val volumeLiters: Int) {
+13          var temperature: Double = 0.0
+14          var ph: Double = 7.0
+15          var readingsCount: Int = 0
+16      }
+17
+
+18      // лічильник збільшуємо вручну, і так у кожній функції
+19      fun applyTemperature(aquarium: Aquarium, value: Double) {
+20          aquarium.temperature = value
+21          aquarium.readingsCount = aquarium.readingsCount + 1
+22      }
+23
+
+24      fun applyPh(aquarium: Aquarium, value: Double) {
+25          aquarium.ph = value
+26          aquarium.readingsCount = aquarium.readingsCount + 1
+27      }
+28
+
+29      fun run() {
+30          val tank = Aquarium("Рифовий акваріум", volumeLiters = 120)
+31          applyTemperature(tank, 25.4)
+32          applyPh(tank, 8.1)
+33          println("${tank.name}, ${tank.volumeLiters} л")
+34          println("Температура: ${tank.temperature} °C")
+35          println("pH: ${tank.ph}")
+36          println("Оброблено показів: ${tank.readingsCount}")
+37      }
+38  }
+39
+
+40  // Після
+41  object EncapsulateFieldAfter {
+42      // set закрили (private), змінити поле можна тільки через методи
+43      class Aquarium(val name: String, val volumeLiters: Int) {
+44          var temperature: Double = 0.0
+45              private set
+46          var ph: Double = 7.0
+47              private set
+48          var readingsCount: Int = 0
+49              private set
+50
+
+51          // лічильник тепер збільшується тільки тут
+52          fun updateTemperature(celsius: Double) {
+53              temperature = celsius
+54              readingsCount++
+55          }
+56
+
+57          fun updatePh(newPh: Double) {
+58              ph = newPh
+59              readingsCount++
+60          }
+61      }
+62
+
+63      fun run() {
+64          val tank = Aquarium("Рифовий акваріум", volumeLiters = 120)
+65          tank.updateTemperature(25.4)
+66          tank.updatePh(8.1)
+67          println("${tank.name}, ${tank.volumeLiters} л")
+68          println("Температура: ${tank.temperature} °C")
+69          println("pH: ${tank.ph}")
+70          println("Оброблено показів: ${tank.readingsCount}")
+71      }
+72  }
+
+В.2 Метод Replace Type Code with Class
+
+ 75  // 2 - Replace Type Code with Class
+ 76
+
+ 77  // До
+ 78  object TypeCodeBefore {
+ 79      // тип датчика - просто числа, можна передати будь-яке
+ 80      const val SENSOR_TEMPERATURE = 1
+ 81      const val SENSOR_PH = 2
+ 82      const val SENSOR_WATER_LEVEL = 3
+ 83
+
+ 84      class SensorReading(val sensorType: Int, val value: Double)
+ 85
+
+ 86      // назва і одиниця в окремих функціях, при новому датчику міняти обидві
+ 87      fun sensorTitle(type: Int): String = when (type) {
+ 88          SENSOR_TEMPERATURE -> "Температура"
+ 89          SENSOR_PH -> "Кислотність"
+ 90          SENSOR_WATER_LEVEL -> "Рівень води"
+ 91          else -> "Невідомий датчик"
+ 92      }
+ 93
+
+ 94      fun sensorUnit(type: Int): String = when (type) {
+ 95          SENSOR_TEMPERATURE -> "°C"
+ 96          SENSOR_PH -> "pH"
+ 97          SENSOR_WATER_LEVEL -> "см"
+ 98          else -> ""
+ 99      }
+100
+
+101      fun run() {
+102          val readings = listOf(
+103              SensorReading(SENSOR_TEMPERATURE, 25.4),
+104              SensorReading(SENSOR_PH, 8.1),
+105              SensorReading(SENSOR_WATER_LEVEL, 42.0),
+106          )
+107          for (reading in readings) {
+108              val title = sensorTitle(reading.sensorType)
+109              val unit = sensorUnit(reading.sensorType)
+110              println("$title: ${reading.value} $unit")
+111          }
+112      }
+113  }
+114
+
+115  // Після
+116  object TypeCodeAfter {
+117      // тип датчика став enum, назва і одиниця лежать разом з ним
+118      enum class SensorType(val title: String, val unit: String) {
+119          TEMPERATURE("Температура", "°C"),
+120          PH("Кислотність", "pH"),
+121          WATER_LEVEL("Рівень води", "см"),
+122      }
+123
+
+124      class SensorReading(val sensorType: SensorType, val value: Double)
+125
+
+126      fun run() {
+127          val readings = listOf(
+128              SensorReading(SensorType.TEMPERATURE, 25.4),
+129              SensorReading(SensorType.PH, 8.1),
+130              SensorReading(SensorType.WATER_LEVEL, 42.0),
+131          )
+132          for (reading in readings) {
+133              val type = reading.sensorType
+134              println("${type.title}: ${reading.value} ${type.unit}")
+135          }
+136      }
+137  }
+
+В.3 Метод Replace Data Value with Object
+
+140  // 3 - Replace Data Value with Object
+141
+
+142  // До
+143  object DataValueBefore {
+144      // pH - звичайний Double, діапазон 0..14 перевіряємо вручну
+145      fun phStatus(ph: Double): String = when {
+146          ph < 0.0 || ph > 14.0 -> "помилка"
+147          ph < 6.5 -> "кисла"
+148          ph > 8.5 -> "лужна"
+149          else -> "норма"
+150      }
+151
+
+152      fun showPh(value: Double) {
+153          if (value < 0.0 || value > 14.0) {
+154              println("Некоректне значення pH: $value")
+155          } else {
+156              println("pH: $value (${phStatus(value)})")
+157          }
+158      }
+159
+
+160      fun run() {
+161          showPh(8.1)
+162          showPh(15.2)
+163      }
+164  }
+165
+
+166  // Після
+167  object DataValueAfter {
+168      // pH став окремим класом, перевірка і статус тепер всередині
+169      @JvmInline
+170      value class Ph(val value: Double) {
+171          init {
+172              require(value in MIN..MAX) { "Некоректне значення pH: $value" }
+173          }
+174
+
+175          val status: String
+176              get() = when {
+177                  value < 6.5 -> "кисла"
+178                  value > 8.5 -> "лужна"
+179                  else -> "норма"
+180              }
+181
+
+182          override fun toString(): String = value.toString()
+183
+
+184          companion object {
+185              const val MIN = 0.0
+186              const val MAX = 14.0
+187
+
+188              fun ofOrNull(value: Double): Ph? =
+189                  if (value in MIN..MAX) Ph(value) else null
+190          }
+191      }
+192
+
+193      fun showPh(value: Double) {
+194          val ph = Ph.ofOrNull(value)
+195          if (ph == null) {
+196              println("Некоректне значення pH: $value")
+197          } else {
+198              println("pH: $ph (${ph.status})")
+199          }
+200      }
+201
+
+202      fun run() {
+203          showPh(8.1)
+204          showPh(15.2)
+205      }
+206  }
+
+В.4 Перевірка поведінки
+
+209  // Перевірка: чи однаковий вивід до і після
+210
+
+211  /** Запускає [block] і повертає все, що він вивів у консоль. */
+212  fun captureOutput(block: () -> Unit): String {
+213      val buffer = ByteArrayOutputStream()
+214      val original = System.out
+215      System.setOut(PrintStream(buffer, true, "UTF-8"))
+216      try {
+217          block()
+218      } finally {
+219          System.setOut(original)
+220      }
+221      return buffer.toString("UTF-8")
+222  }
+223
+
+224  fun check(name: String, before: () -> Unit, after: () -> Unit) {
+225      val outBefore = captureOutput(before)
+226      val outAfter = captureOutput(after)
+227      println("=== $name: до ===")
+228      print(outBefore)
+229      println("=== $name: після ===")
+230      print(outAfter)
+231      println("Вивід однаковий: ${outBefore == outAfter}")
+232      println()
+233  }
+234
+
+235  fun main() {
+236      check("1 - Encapsulate Field", EncapsulateFieldBefore::run, EncapsulateFieldAfter::run)
+237      check("2 - Replace Type Code with Class", TypeCodeBefore::run, TypeCodeAfter::run)
+238      check("3 - Replace Data Value with Object", DataValueBefore::run, DataValueAfter::run)
+239  }
